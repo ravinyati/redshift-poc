@@ -30,10 +30,10 @@ app.get("/", async (req, res) => {
   });
 
   const executeStatementCommand = new ExecuteStatementCommand({
-    ClusterIdentifier: "redshift-cluster-1",
-    host: "redshift-cluster-1.c1rfufaidicm.ca-central-1.redshift.amazonaws.com",
-    Database: "dev",
-    DbUser: "awsuser",
+    ClusterIdentifier: "cluster-name",
+    host: "cluster host",
+    Database: "dDbName",
+    DbUser: "user",
     Sql: "select * from dev.public.category limit 2",
   });
 
