@@ -1,116 +1,181 @@
+// const express = require("express");
+// const { Upload } = require("@aws-sdk/lib-storage");
+// const {
+//   S3Client,
+//   GetObjectCommand,
+//   HeadObjectCommand,
+// } = require("@aws-sdk/client-s3");
+
+// const app = express();
+// const port = 8090;
+
+// const s3Client = new S3Client({
+//   region: process.env.AWS_REGION,
+// }); // Update with your region
+
+// async function multipartUpload(bucketName, key, fileStream) {
+//   const uploader = new Upload({
+//     client: s3Client,
+//     params: {
+//       Bucket: bucketName,
+//       Key: key,
+//       Body: fileStream, // Directly using the stream
+//     },
+//     queueSize: 20, // Increase this value
+//     partSize: 5 * 1024 * 1024, // Use 2 MB parts
+//   });
+
+//   try {
+//     const result = await uploader.done();
+//     console.log("Multipart upload completed successfully:", result);
+//     return result;
+//   } catch (err) {
+//     console.error("Error during multipart upload:", err);
+//     throw err;
+//   }
+// }
+
+// async function getData() {
+//   console.log("Fetching object from S3...");
+
+//   const bucketName = "ravi-test01";
+//   const keyToRead = "30mb.csv";
+//   const keyToWrite = "30mb-Write-new.csv";
+
+//   try {
+//     // Get the metadata of the object to retrieve its size
+//     const headCommand = new HeadObjectCommand({
+//       Bucket: bucketName,
+//       Key: keyToRead,
+//     });
+//     const headData = await s3Client.send(headCommand);
+//     const fileSize = headData.ContentLength; // This gives you the size of the object in bytes
+
+//     // Measure read time using stream
+//     const startRead = Date.now();
+//     const getObjectCommand = new GetObjectCommand({
+//       Bucket: bucketName,
+//       Key: keyToRead,
+//     });
+//     const data = await s3Client.send(getObjectCommand);
+//     const fileStream = data.Body; // Use stream directly
+//     const readTime = Date.now() - startRead; // Calculate read time
+
+//     console.log(`Read file size: ${fileSize} bytes`); // Log the size of the file read
+//     console.log(`Read time: ${readTime} ms`); // Log the read time
+
+//     // Measure write time using multipart upload
+//     const startWrite = Date.now();
+//     await multipartUpload(bucketName, keyToWrite, fileStream); // Stream the read data directly to S3
+//     const writeTime = Date.now() - startWrite; // Calculate write time
+
+//     console.log(`Written file size: ${fileSize} bytes`); // Assuming you write the same content back
+//     console.log(`Write time: ${writeTime} ms`); // Log the write time
+
+//     return `Read time: ${readTime} ms, Write time: ${writeTime} ms`;
+//   } catch (error) {
+//     console.error("Error fetching or writing data:", error);
+//     throw error;
+//   }
+// }
+
+// // Define the route to trigger the S3 operations
+// app.get("/fetch-data", async (req, res) => {
+//   try {
+//     const result = await getData();
+//     res.send(result);
+//   } catch (error) {
+//     res.status(500).send("Error processing data");
+//   }
+// });
+
+// // Start the server
+// app.listen(port, () => {
+//   console.log(`Server is running on http://localhost:${port}`);
+// });
+
 const express = require("express");
 const {
-  RedshiftDataClient,
-  ExecuteStatementCommand,
-  DescribeStatementCommand,
-  GetStatementResultCommand,
-} = require("@aws-sdk/client-redshift-data");
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  HeadObjectCommand,
+} = require("@aws-sdk/client-s3");
 
 const app = express();
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+const port = 8090;
 
-//Cors handling
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin,X-Requested-With,Content-Type,Accept,Authorization"
-  );
-  if (req.method === "OPTIONS") {
-    res.header("Access-Control-Allow-Methods", "PUT,POST,PATCH,DELETE,GET");
-    return res.status(200).json({});
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+});
+
+async function getData() {
+  console.log("Fetching object from S3...");
+
+  const bucketName = "ravi-test01";
+  const keyToRead = "30mb.csv";
+  const keyToWrite = "30mb-Write-new.csv";
+
+  try {
+    // Get the metadata of the object to retrieve its size
+    const headCommand = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: keyToRead,
+    });
+    const headData = await s3Client.send(headCommand);
+    const fileSize = headData.ContentLength; // Size of the object in bytes
+
+    // Measure read time
+    const startRead = Date.now();
+    const getObjectCommand = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: keyToRead,
+    });
+    const data = await s3Client.send(getObjectCommand);
+
+    // Decode the Body stream as a UTF-8 string
+    const fileContent = await data.Body.transformToString("utf-8");
+    const endRead = Date.now();
+    const readTime = endRead - startRead;
+
+    console.log(`Read file size: ${fileSize} bytes`);
+    console.log(`Read time: ${readTime} ms`);
+
+    // Measure write time
+    const startWrite = Date.now();
+    const putObjectCommand = new PutObjectCommand({
+      Body: fileContent,
+      Bucket: bucketName,
+      Key: keyToWrite,
+    });
+    const putResponse = await s3Client.send(putObjectCommand);
+    const endWrite = Date.now();
+    const writeTime = endWrite - startWrite;
+
+    console.log(
+      `File written with status code: ${putResponse.$metadata.httpStatusCode}`
+    );
+    console.log(`Written file size: ${fileSize} bytes`);
+    console.log(`Write time: ${writeTime} ms`);
+
+    return `Read time: ${readTime} ms, Write time: ${writeTime} ms`;
+  } catch (error) {
+    console.error("Error fetching or writing data:", error);
+    throw error;
   }
-  next();
-});
+}
 
-app.get("/", async (req, res) => {
-  const awsRedshiftClient = new RedshiftDataClient({
-    region: "ca-central-1",
-  });
-
-  const executeStatementCommand = new ExecuteStatementCommand({
-    ClusterIdentifier: "cluster-name",
-    host: "cluster host",
-    Database: "dDbName",
-    DbUser: "user",
-    Sql: "select * from dev.public.category limit 2",
-  });
-
-  const executeStatementResult = await awsRedshiftClient.send(
-    executeStatementCommand
-  );
-
-  const pollStatementStatus = async () => {
-    let status;
-    do {
-      const getStatusCommand = new DescribeStatementCommand({
-        Id: executeStatementResult.Id,
-      });
-      const statusResult = await awsRedshiftClient.send(getStatusCommand);
-      status = statusResult.Status;
-      console.log(`Current status: ${status}`);
-      if (status !== "FINISHED" && status !== "FAILED") {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for 2 seconds
-      }
-    } while (status !== "FINISHED" && status !== "FAILED");
-    return status;
-  };
-  // wait for statement to excecute
-  await pollStatementStatus();
-
-  const getStatementResultCommand = new GetStatementResultCommand({
-    Id: executeStatementResult.Id,
-  });
-
-  const getStatementResult = await awsRedshiftClient.send(
-    getStatementResultCommand
-  );
-  const columnMetadata = getStatementResult.columnMetadata;
-
-  // store fetched results in array
-  const fetchedRecords = [];
-
-  // process fetched results with column names
-  if (getStatementResult.Records) {
-    console.log("Fetched Records:", getStatementResult.Records);
-    // getStatementResult.Records.forEach((record) => {
-    //   const rowData = {};
-    //   record.forEach((value, index) => {
-    //     const columnName = columnMetadata[index].name;
-    //     rowData[columnName] =
-    //       value.stringValue ||
-    //       value.doubleValue ||
-    //       value.longValue ||
-    //       value.booleanValue;
-    //   });
-    //   fetchedRecords.push(rowData);
-    // });
-    return res.send(getStatementResult.Records);
+// Define the route to trigger the S3 operations
+app.get("/fetch-data", async (req, res) => {
+  try {
+    const result = await getData();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send("Error processing data");
   }
-
-  //Print entire array to console
-  console.log(fetchedRecords);
-  return res.send(fetchedRecords);
 });
 
-app.use((req, res, next) => {
-  const error = new Error("Not Found");
-  error.status = 404;
-  next(error);
-});
-
-app.use((error, req, res, next) => {
-  res.status(error.status || 500);
-  res.json({
-    error: {
-      message: error.message,
-    },
-  });
-});
-
-const PORT = process.env.PORT || 80;
-
-app.listen(PORT, async () => {
-  console.log("App running");
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });
