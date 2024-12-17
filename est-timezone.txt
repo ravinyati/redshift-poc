@@ -17,3 +17,15 @@ function generateTimestampEST() {
 // Example usage
 const timestamp = generateTimestampEST();
 console.log(timestamp); // Output: [2024-12-17][2024-12-17T201712]
+
+
+
+
+  // Further validation for file format
+  const { format = "csv" } = attributesFromAngular; // Extract format from attributes
+  const validFormats = ["csv", "json"]; // Extend this list as per your requirements
+  if (!validFormats.includes(format)) {
+    return res.status(400).json({
+      error: `Invalid format. Allowed formats are: ${validFormats.join(", ")}`,
+    });
+  }
