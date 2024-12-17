@@ -1,0 +1,19 @@
+function generateTimestampEST() {
+  const now = new Date();
+  const estTime = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+  );
+
+  // Format the date as YYYY-MM-DD
+  const datePart = estTime.toISOString().split("T")[0]; // Get the date part (YYYY-MM-DD)
+
+  // Format the time as YYYY-MM-DDTHHMMSS
+  const timePart = estTime.toISOString().replace(/[-:]/g, "").split(".")[0].slice(0, 15); // Format to remove dashes and colons
+
+  // Combine both parts in the desired format
+  return `[${datePart}][${timePart}]`; // Output format: [YYYY-MM-DD][YYYY-MM-DDTHHMMSS]
+}
+
+// Example usage
+const timestamp = generateTimestampEST();
+console.log(timestamp); // Output: [2024-12-17][2024-12-17T201712]
